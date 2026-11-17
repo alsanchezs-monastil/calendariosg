@@ -1684,13 +1684,9 @@
     }
 
     function getDaysToRender() {
-      if (!isMobileView()) {
-        // Desktop: 7 days (Mon - Sun)
-        return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
-      }
-      // Mobile: 35 continuous days (1 past week + current week + 3 upcoming weeks) for silky-smooth horizontal scrolling
-      const start = addDays(currentWeekStart, -7);
-      return Array.from({ length: 35 }, (_, i) => addDays(start, i));
+      // Both desktop and mobile render the 7 days (Mon - Sun) of currentWeekStart.
+      // On mobile (5 visible columns), native horizontal scroll naturally stops at Monday (left) and Sunday (right).
+      return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
     }
 
     function updateHeaderFromVisibleWindow() {
@@ -1701,9 +1697,9 @@
       if (isMobileView()) {
         const scrollEl = document.getElementById('calendarScroll');
         const dayW = getMobileDayWidth();
-        const startIdx = Math.max(0, Math.min(renderedDays.length - 5, Math.round(scrollEl.scrollLeft / dayW)));
+        const startIdx = Math.max(0, Math.min(2, Math.round(scrollEl.scrollLeft / dayW)));
         first = renderedDays[startIdx];
-        last = renderedDays[Math.min(renderedDays.length - 1, startIdx + 4)];
+        last = renderedDays[Math.min(6, startIdx + 4)];
       }
 
       const monthText = first.getMonth() === last.getMonth()
@@ -1780,17 +1776,16 @@
       if (isMobileView()) {
         const scrollEl = document.getElementById('calendarScroll');
         const dayW = getMobileDayWidth();
-        let targetIdx = 7; // Monday of currentWeekStart
+        let targetScrollLeft = 0; // Default: Monday to Friday (days 0..4)
         if (targetFocusDate) {
           const targetStr = toDateStr(targetFocusDate);
           const foundIdx = renderedDays.findIndex(d => toDateStr(d) === targetStr);
-          if (foundIdx >= 0) {
-            // If Saturday or Sunday, shift slightly left so it's comfortably visible in the 5-day viewport
-            const dow = targetFocusDate.getDay();
-            targetIdx = (dow === 0 || dow === 6) ? Math.max(0, foundIdx - 3) : foundIdx;
+          // If focusing Saturday (5) or Sunday (6), position at the right stop (Wed-Sun)
+          if (foundIdx >= 5) {
+            targetScrollLeft = 2 * dayW;
           }
         }
-        scrollEl.scrollLeft = targetIdx * dayW;
+        scrollEl.scrollLeft = targetScrollLeft;
       }
 
       updateHeaderFromVisibleWindow();
@@ -1891,16 +1886,15 @@
     }
 
     // =========================================================================
-    // SEAMLESS INFINITE HORIZONTAL SCROLL HANDLER (MOBILE)
+    // BOUNDED WEEK SCROLL (MON-SUN STOP) + SECOND-DRAG WEEK SWITCH (MOBILE)
     // =========================================================================
     function initFluidScrollListener() {
       const scrollEl = document.getElementById('calendarScroll');
-      let scrollStopTimer = null;
       let rafPending = false;
 
+      // Update header dates smoothly while panning between Mon-Fri and Wed-Sun
       scrollEl.addEventListener('scroll', () => {
         if (!isMobileView()) return;
-
         if (!rafPending) {
           rafPending = true;
           requestAnimationFrame(() => {
@@ -1908,29 +1902,52 @@
             rafPending = false;
           });
         }
+      }, { passive: true });
 
-        clearTimeout(scrollStopTimer);
-        scrollStopTimer = setTimeout(() => {
-          const dayW = getMobileDayWidth();
-          if (dayW <= 0) return;
-          const visibleStartIdx = Math.round(scrollEl.scrollLeft / dayW);
+      // Touch tracking:
+      // 1st drag from Mon-Fri pans across the week and hits a physical stop at Sunday (and vice versa at Monday).
+      // 2nd distinct drag started while ALREADY at the Sunday or Monday stop switches to the next/previous week.
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let wasAtLeftEdge = false;
+      let wasAtRightEdge = false;
+      let switchedOnThisGesture = false;
 
-          // Keep currentWeekStart synced with what the user is viewing
-          if (renderedDays[visibleStartIdx]) {
-            currentWeekStart = getMonday(renderedDays[visibleStartIdx]);
-          }
+      scrollEl.addEventListener('touchstart', (e) => {
+        if (!isMobileView() || e.touches.length !== 1) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        const maxScroll = Math.max(0, scrollEl.scrollWidth - scrollEl.clientWidth);
+        wasAtLeftEdge = scrollEl.scrollLeft <= 6;
+        wasAtRightEdge = maxScroll > 0 && scrollEl.scrollLeft >= maxScroll - 6;
+        switchedOnThisGesture = false;
+      }, { passive: true });
 
-          // If user scrolled close to either edge of the 35-day buffer, seamlessly re-center without visual jump
-          if (visibleStartIdx <= 3 || visibleStartIdx >= 26) {
-            const currentLeftPx = scrollEl.scrollLeft;
-            const oldFirstDay = renderedDays[0];
-            renderCalendarStructure();
-            const newFirstDay = renderedDays[0];
-            const diffDays = Math.round((newFirstDay - oldFirstDay) / 86400000);
-            scrollEl.scrollLeft = currentLeftPx - (diffDays * dayW);
-            updateHeaderFromVisibleWindow();
-          }
-        }, 180);
+      scrollEl.addEventListener('touchend', (e) => {
+        if (!isMobileView() || switchedOnThisGesture || !e.changedTouches.length) return;
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+
+        // Require a clear horizontal swipe (> 52px and predominantly horizontal)
+        if (Math.abs(dx) < 52 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+
+        // Swiped left while ALREADY at the Sunday stop -> go to next week (Monday to Friday)
+        if (dx < 0 && wasAtRightEdge) {
+          switchedOnThisGesture = true;
+          currentWeekStart = addDays(currentWeekStart, 7);
+          renderCalendarStructure(currentWeekStart);
+          const endFri = addDays(currentWeekStart, 4);
+          showToast(`📅 Semana del ${currentWeekStart.getDate()} al ${endFri.getDate()} ${MONTHS_SHORT[endFri.getMonth()]}`, 1800);
+        }
+        // Swiped right while ALREADY at the Monday stop -> go to previous week (ending at Sat-Sun)
+        else if (dx > 0 && wasAtLeftEdge) {
+          switchedOnThisGesture = true;
+          currentWeekStart = addDays(currentWeekStart, -7);
+          const prevSunday = addDays(currentWeekStart, 6);
+          renderCalendarStructure(prevSunday);
+          const wed = addDays(currentWeekStart, 2);
+          showToast(`📅 Semana del ${wed.getDate()} al ${prevSunday.getDate()} ${MONTHS_SHORT[prevSunday.getMonth()]}`, 1800);
+        }
       }, { passive: true });
     }
 
@@ -2353,7 +2370,7 @@
 
       isListening = true;
       document.getElementById('voiceBtn').classList.add('listening');
-      showToast('🎙️ Habla ahora (ej. "Se llama Fútbol, para Alejandro y Noah, empieza a las 5 y acaba a las 6")...', 0);
+      showToast('🎙️ Habla ahora (ej. "Quiero que se llame Fútbol, para Alejandro y Noah, empieza a las 5")...', 0);
 
       recognition.onresult = (event) => {
         let interim = '';
@@ -2408,6 +2425,14 @@
       if (/\b(todos|toda la familia|familia)\b/.test(text)) {
         FAMILY_MEMBERS.forEach(m => detectedMembers.add(m.id));
       } else {
+        if (/\b(los niños|los peques|niños)\b/.test(text)) {
+          detectedMembers.add('alicia');
+          detectedMembers.add('noah');
+        }
+        if (/\b(los adultos|nosotros)\b/.test(text)) {
+          detectedMembers.add('alejandro');
+          detectedMembers.add('alba');
+        }
         if (/\balejandro\b/.test(text)) detectedMembers.add('alejandro');
         if (/\balba\b/.test(text)) detectedMembers.add('alba');
         if (/\balicia\b/.test(text)) detectedMembers.add('alicia');
@@ -2416,9 +2441,9 @@
 
       let dropoff = '';
       let pickup = '';
-      const llevaMatch = text.match(/lleva\s+(alejandro|alba)/);
+      const llevaMatch = text.match(/(?:lleva|lleve)\s+(alejandro|alba)/);
       if (llevaMatch) dropoff = llevaMatch[1] === 'alejandro' ? 'Alejandro' : 'Alba';
-      const recogeMatch = text.match(/recoge\s+(alejandro|alba)/);
+      const recogeMatch = text.match(/(?:recoge|recoja)\s+(alejandro|alba)/);
       if (recogeMatch) pickup = recogeMatch[1] === 'alejandro' ? 'Alejandro' : 'Alba';
 
       let targetDate = new Date();
@@ -2468,8 +2493,8 @@
       let endTime = '18:00';
 
       const rangeRegex = /(?:de|desde)\s+(?:las?\s+)?(\d{1,2})(?:\s*(?:y|:)\s*(\d{1,2}|media|cuarto))?\s+(?:a|hasta)\s+(?:las?\s+)?(\d{1,2})(?:\s*(?:y|:)\s*(\d{1,2}|media|cuarto))?/;
-      const startRegex = /(?:empieza|comienza|a)\s+(?:a\s+)?(?:las?\s+)?(\d{1,2})(?:\s*(?:y|:|menos)\s*(\d{1,2}|media|cuarto))?(?:\s+de\s+la\s+(mañana|tarde|noche))?/;
-      const endRegex = /(?:acaba|termina|finaliza)\s+(?:a\s+)?(?:las?\s+)?(\d{1,2})(?:\s*(?:y|:|menos)\s*(\d{1,2}|media|cuarto))?(?:\s+de\s+la\s+(mañana|tarde|noche))?/;
+      const startRegex = /(?:empieza|empiece|comienza|comience|a)\s+(?:a\s+)?(?:las?\s+)?(\d{1,2})(?:\s*(?:y|:|menos)\s*(\d{1,2}|media|cuarto))?(?:\s+de\s+la\s+(mañana|tarde|noche))?/;
+      const endRegex = /(?:acaba|acabe|termina|termine|finaliza|finalice)\s+(?:a\s+)?(?:las?\s+)?(\d{1,2})(?:\s*(?:y|:|menos)\s*(\d{1,2}|media|cuarto))?(?:\s+de\s+la\s+(mañana|tarde|noche))?/;
 
       const rangeMatch = text.match(rangeRegex);
       if (rangeMatch) {
@@ -2497,20 +2522,57 @@
         else reminders.push({ days: val, hours: 0, minutes: 0 });
       }
 
+      // 1. Priority extraction: explicit naming phrases ("quiero que se llame X", "que su nombre sea X", etc.)
       let title = '';
-      const namedMatch = raw.match(/(?:se llama|título|nombre)\s+([^,.;]+?)(?=\s+(?:para|con|el|hoy|mañana|empieza|a las|de \d|lleva|recoge|avísame)|$)/i);
-      if (namedMatch) {
-        title = namedMatch[1].trim();
-      } else {
+      const explicitPatterns = [
+        /(?:quiero\s+que\s+|que\s+)?se\s+llam[ae]\s+(.+)/i,
+        /(?:quiero\s+que\s+|que\s+)?(?:su\s+|el\s+)?nombre(?:\s+del\s+evento)?\s+(?:sea|es|será|sera|va\s+a\s+ser)\s+(.+)/i,
+        /(?:pon(?:le)?|poner(?:le)?|con)\s+(?:de\s+|como\s+)?(?:nombre|título|titulo)\s+(.+)/i,
+        /(?:evento|cita|actividad|recordatorio)\s+(?:llamad[oa]|titulad[oa])\s+(.+)/i,
+        /\b(?:título|titulo|nombre)\s*[:\-]\s*(.+)/i
+      ];
+
+      const boundaryRegex = new RegExp(
+        '(?:[,.;:]|' +
+        '\\s+(?:y\\s+)?(?:para|con)\\s+(?:alejandro|alba|alicia|noah|noa|todos|toda\\s+la\\s+familia|familia|los\\s+niños|los\\s+peques|los\\s+adultos|nosotros)\\b|' +
+        '\\s+(?:y\\s+)?(?:para\\s+)?(?:que\\s+(?:sea|es)\\s+)?(?:el\\s+día|el\\s+dia|el\\s+próximo|el\\s+proximo|el\\s+lunes|el\\s+martes|el\\s+miércoles|el\\s+miercoles|el\\s+jueves|el\\s+viernes|el\\s+sábado|el\\s+sabado|el\\s+domingo|hoy|mañana|pasado\\s+mañana)\\b|' +
+        '\\s+(?:y\\s+)?(?:que\\s+)?(?:empieza|empiece|comienza|comience|acaba|acabe|termina|termine|finaliza|finalice|es\\s+a\\s+las|sea\\s+a\\s+las|a\\s+las|de\\s+las|desde\\s+las|hasta\\s+las|de\\s+\\d)\\b|' +
+        '\\s+(?:y\\s+)?(?:que\\s+)?(?:lo\\s+|la\\s+|los\\s+|las\\s+)?(?:lleva|lleve|recoge|recoja)\\s+(?:alejandro|alba)\\b|' +
+        '\\s+(?:y\\s+)?(?:avísame|avisame|recordatorio|con\\s+aviso|se\\s+repite|repetir|todos\\s+los)\\b)',
+        'i'
+      );
+
+      for (const pat of explicitPatterns) {
+        const m = raw.match(pat);
+        if (m && m[1]) {
+          let after = m[1].trim();
+          const b = after.match(boundaryRegex);
+          if (b && typeof b.index === 'number') {
+            after = after.slice(0, b.index).trim();
+          }
+          after = after.replace(/^["'«“]+|["'»”]+$/g, '').trim();
+          if (after) {
+            title = after;
+            break;
+          }
+        }
+      }
+
+      // 2. Fallback: strip conversational preambles & detected metadata chunks
+      if (!title) {
         title = raw
-          .replace(/(?:para|con)\s+(?:alejandro|alba|alicia|noah|noa|todos|toda la familia)(?:\s+y\s+(?:alejandro|alba|alicia|noah|noa))*/gi, '')
-          .replace(/(?:empieza|comienza|acaba|termina)\s+(?:a\s+)?(?:las?\s+)?\d{1,2}(?:\s*(?:y|:|menos)\s*(?:\d{1,2}|media|cuarto))?/gi, '')
+          .replace(/^(?:hola\s*,?\s*|oye\s*,?\s*)?(?:quiero\s+)?(?:crear|añadir|agregar|apuntar|poner|agendar|programar)\s+(?:un\s+|una\s+)?(?:nuevo\s+|nueva\s+)?(?:evento|cita|actividad|recordatorio)\s*(?:que\s+sea\s+|de\s+|sobre\s+|para\s+)?/i, '')
+          .replace(/^(?:quiero\s+que\s+(?:el\s+evento\s+)?sea\s+)/i, '')
+          .replace(/(?:para|con)\s+(?:alejandro|alba|alicia|noah|noa|todos|toda\s+la\s+familia|familia|los\s+niños|los\s+peques|los\s+adultos|nosotros)(?:\s+y\s+(?:alejandro|alba|alicia|noah|noa))*/gi, '')
+          .replace(/(?:(?:que\s+)?(?:empieza|empiece|comienza|comience|acaba|acabe|termina|termine)\s+)?(?:a\s+)?(?:las?\s+)?\d{1,2}(?:\s*(?:y|:|menos)\s*(?:\d{1,2}|media|cuarto))?(?:\s+de\s+la\s+(?:mañana|tarde|noche))?/gi, '')
           .replace(/(?:de|desde)\s+(?:las?\s+)?\d{1,2}(?:\s*(?:y|:)\s*(?:\d{1,2}|media|cuarto))?\s+(?:a|hasta)\s+(?:las?\s+)?\d{1,2}(?:\s*(?:y|:)\s*(?:\d{1,2}|media|cuarto))?/gi, '')
-          .replace(/\b(?:hoy|pasado mañana|mañana|el próximo|el|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b/gi, '')
-          .replace(/(?:lleva|recoge)\s+(?:alejandro|alba)/gi, '')
+          .replace(/\b(?:hoy|pasado\s+mañana|mañana|el\s+próximo|el\s+proximo|el|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b/gi, '')
+          .replace(/(?:que\s+)?(?:lo\s+|la\s+)?(?:lleva|lleve|recoge|recoja)\s+(?:alejandro|alba)/gi, '')
           .replace(/(?:avísame|avisame|recordatorio)\s+\d+\s+(?:minutos?|horas?|días?|dias?)\s*(?:antes)?/gi, '')
           .replace(/[,.;]+/g, ' ')
           .replace(/\s{2,}/g, ' ')
+          .trim()
+          .replace(/^(?:y|de|para|que)\s+|\s+(?:y|de|para|que)$/gi, '')
           .trim();
       }
 
@@ -2773,23 +2835,13 @@
     // =========================================================================
     function bindUIEvents() {
       document.getElementById('prevWeekBtn').onclick = () => {
-        if (isMobileView()) {
-          const scrollEl = document.getElementById('calendarScroll');
-          scrollEl.scrollBy({ left: -getMobileDayWidth() * 5, behavior: 'smooth' });
-        } else {
-          currentWeekStart = addDays(currentWeekStart, -7);
-          renderCalendarStructure();
-        }
+        currentWeekStart = addDays(currentWeekStart, -7);
+        renderCalendarStructure();
       };
 
       document.getElementById('nextWeekBtn').onclick = () => {
-        if (isMobileView()) {
-          const scrollEl = document.getElementById('calendarScroll');
-          scrollEl.scrollBy({ left: getMobileDayWidth() * 5, behavior: 'smooth' });
-        } else {
-          currentWeekStart = addDays(currentWeekStart, 7);
-          renderCalendarStructure();
-        }
+        currentWeekStart = addDays(currentWeekStart, 7);
+        renderCalendarStructure();
       };
 
       document.getElementById('todayBtn').onclick = () => {
