@@ -14,7 +14,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
   <style>
     :root {
@@ -436,7 +435,7 @@
       border-bottom: 1px solid var(--border-light);
       background: var(--bg-surface);
       flex-shrink: 0;
-      padding-right: 6px; /* scrollbar compensation */
+      padding-right: 6px;
     }
 
     .time-gutter-header {
@@ -998,7 +997,7 @@
         </div>
 
         <div class="header-actions">
-          <button type="button" class="action-pill" id="syncModalBtn" title="Sincronización Supabase y Push">
+          <button type="button" class="action-pill" id="syncModalBtn" title="Estado de sincronización y avisos">
             <span class="sync-dot" id="syncDot"></span>
             <span class="hide-xs" id="syncLabel">Sync</span>
           </button>
@@ -1199,48 +1198,39 @@
   <div class="modal-backdrop" id="syncModal">
     <div class="modal-card">
       <div class="modal-header">
-        <h2 class="modal-title">☁️ Sincronización Supabase y Push</h2>
+        <h2 class="modal-title">☁️ Sincronización Netlify y Avisos</h2>
         <button type="button" class="icon-btn btn-sm" id="closeSyncModal">✕</button>
       </div>
       <div class="modal-body">
         <div class="info-box" id="syncStatusBox">
-          Estado actual: <strong>Modo local</strong> (guardado en este dispositivo). Conecta Supabase para sincronizar al instante entre Alejandro y Alba.
+          Comprobando conexión automática con <strong>Netlify Cloud</strong>...
         </div>
 
         <div class="field-group">
-          <label class="field-label" for="sbUrl">Supabase Project URL</label>
-          <input type="url" id="sbUrl" class="input-control" placeholder="https://tuproyecto.supabase.co" />
-        </div>
-
-        <div class="field-group">
-          <label class="field-label" for="sbKey">Supabase Anon Public Key</label>
-          <input type="text" id="sbKey" class="input-control" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." />
-        </div>
-
-        <div class="field-group">
-          <label class="field-label" for="familyRoomId">Identificador de Familia</label>
+          <label class="field-label" for="familyRoomId">Espacio Familiar (compartido automáticamente)</label>
           <input type="text" id="familyRoomId" class="input-control" value="familia-alejandro-alba" />
         </div>
 
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" class="btn btn-primary" id="connectSupabaseBtn">Guardar y Conectar</button>
-          <button type="button" class="btn" id="shareLinkBtn">🔗 Copiar enlace para Alba</button>
+          <button type="button" class="btn btn-primary" id="forceSyncBtn">🔄 Sincronizar ahora</button>
+          <button type="button" class="btn" id="shareLinkBtn">🔗 Copiar enlace web para Alba</button>
         </div>
 
         <hr style="border:none;border-top:1px solid var(--border-light);margin:4px 0;" />
 
         <div class="field-group">
-          <label class="field-label" for="osAppId">OneSignal App ID (Notificaciones Push)</label>
+          <label class="field-label" for="osAppId">OneSignal App ID (opcional, para Push con app cerrada)</label>
           <input type="text" id="osAppId" class="input-control" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
         </div>
 
         <div class="field-group">
-          <label class="field-label" for="osRestKey">OneSignal REST API Key (opcional, para avisos programados)</label>
+          <label class="field-label" for="osRestKey">OneSignal REST API Key (opcional)</label>
           <input type="password" id="osRestKey" class="input-control" placeholder="os_v2_app_..." />
         </div>
 
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" class="btn" id="enablePushBtn">📲 Activar Push en este móvil</button>
+          <button type="button" class="btn" id="savePushCfgBtn">Guardar Push</button>
+          <button type="button" class="btn" id="enablePushBtn">📲 Activar avisos en este móvil</button>
           <button type="button" class="btn" id="testNotifBtn">🔔 Probar aviso</button>
         </div>
 
@@ -1262,15 +1252,10 @@
   <div class="voice-toast" id="voiceToast">🎙️ Escuchando...</div>
 
   <script>
-    // =========================================================================
-    // OPCIONAL: Puedes pegar aquí tus claves fijas antes de subir a GitHub
-    // si quieres que vengan preconfiguradas en cualquier dispositivo:
-    // =========================================================================
-    const DEFAULT_SUPABASE_URL = "";
-    const DEFAULT_SUPABASE_ANON_KEY = "";
     const DEFAULT_FAMILY_ID = "familia-alejandro-alba";
     const DEFAULT_ONESIGNAL_APP_ID = "";
     const DEFAULT_ONESIGNAL_REST_KEY = "";
+    const NETLIFY_API_ENDPOINT = "/.netlify/functions/events";
 
     const FAMILY_MEMBERS = [
       { id: 'alejandro', name: 'Alejandro', role: 'adult', color: '#2B6CB0', bg: 'rgba(230, 240, 250, 0.92)', text: '#1E3A8A' },
@@ -1296,8 +1281,8 @@
     const MONTHS_LONG = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const MONTHS_SHORT = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
     const HOUR_HEIGHT = 60;
-    const STORAGE_KEY = 'cal_familiar_events_v6';
-    const CFG_KEY = 'cal_familiar_cfg_v1';
+    const STORAGE_KEY = 'cal_familiar_events_v7';
+    const CFG_KEY = 'cal_familiar_cfg_v2';
 
     // Non-school dates from DOGV 2026-2027 image
     const NON_SCHOOL_DATES = new Set([
@@ -1314,7 +1299,7 @@
 
     // Application State
     let events = [];
-    let selectedFilters = new Set(['alejandro', 'alba', 'alicia', 'noah']); // all active initially
+    let selectedFilters = new Set(['alejandro', 'alba', 'alicia', 'noah']);
     let showSchool = true;
     let currentWeekStart = getMonday(new Date());
     let mobileSegment = 0; // 0 = Mon-Fri, 1 = Sat-Sun
@@ -1329,14 +1314,13 @@
 
     // Cloud & Notification State
     let appConfig = {
-      supabaseUrl: DEFAULT_SUPABASE_URL,
-      supabaseKey: DEFAULT_SUPABASE_ANON_KEY,
       familyId: DEFAULT_FAMILY_ID,
       oneSignalAppId: DEFAULT_ONESIGNAL_APP_ID,
       oneSignalRestKey: DEFAULT_ONESIGNAL_REST_KEY
     };
-    let supabaseClient = null;
-    let supabaseChannel = null;
+    let netlifyCloudAvailable = false;
+    let lastCloudUpdatedAt = 0;
+    let isSyncingCloud = false;
     let firedReminders = new Set();
 
     // =========================================================================
@@ -1408,7 +1392,7 @@
       for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
         if (!isSchoolDay(d)) continue;
         const ds = toDateStr(d);
-        const dow = d.getDay(); // 1=Mon .. 5=Fri
+        const dow = d.getDay();
 
         // Colegio Noah: L-V 09:00 - 16:50
         list.push({
@@ -1443,9 +1427,7 @@
           notes: ''
         });
 
-        // Extraescolares Alicia
         if (dow === 1 || dow === 3) {
-          // Lunes y Miércoles 18:30 - 19:30 Inglés
           list.push({
             id: `ext_alicia_ingles_${ds}`,
             title: 'Inglés',
@@ -1460,7 +1442,6 @@
             reminders: [],
             notes: ''
           });
-          // Noah: Lunes y Miércoles 18:15 - 19:00 Natación
           list.push({
             id: `ext_noah_natacion_${ds}`,
             title: 'Natación',
@@ -1478,7 +1459,6 @@
         }
 
         if (dow === 2 || dow === 4) {
-          // Alicia: Martes y Jueves 16:00 - 17:00 M. solfeo
           list.push({
             id: `ext_alicia_solfeo_${ds}`,
             title: 'M. solfeo',
@@ -1493,7 +1473,6 @@
             reminders: [],
             notes: ''
           });
-          // Alicia: Martes y Jueves 18:15 - 19:15 Fit kid
           list.push({
             id: `ext_alicia_fitkid_${ds}`,
             title: 'Fit kid',
@@ -1511,7 +1490,6 @@
         }
 
         if (dow === 4) {
-          // Noah: Jueves 17:15 - 18:15 Música
           list.push({
             id: `ext_noah_musica_${ds}`,
             title: 'Música',
@@ -1529,7 +1507,6 @@
         }
 
         if (dow === 5) {
-          // Alicia: Viernes 17:00 - 18:00 M. coro
           list.push({
             id: `ext_alicia_coro_${ds}`,
             title: 'M. coro',
@@ -1544,7 +1521,6 @@
             reminders: [],
             notes: ''
           });
-          // Alicia: Viernes 18:00 - 18:30 M. trompeta
           list.push({
             id: `ext_alicia_trompeta_${ds}`,
             title: 'M. trompeta',
@@ -1594,7 +1570,6 @@
         const sA = timeToMinutes(a.startTime);
         const sB = timeToMinutes(b.startTime);
         if (sA !== sB) return sA - sB;
-        // Put longer school blocks first so shorter afternoon activities sit on top at offset
         const dA = timeToMinutes(a.endTime) - sA;
         const dB = timeToMinutes(b.endTime) - sB;
         return dB - dA;
@@ -1625,7 +1600,6 @@
           if (n === 1) {
             layoutMap.set(ev.id, { leftPct: 2, widthPct: 96, zIndex: ev.isSchool ? 2 : 5 });
           } else {
-            // 60% width partial overlap as requested
             const widthPct = 60;
             const maxLeft = 100 - widthPct - 1;
             const leftPct = n === 2 ? (idx === 0 ? 1 : 39) : Math.round((idx / (n - 1)) * maxLeft);
@@ -1659,7 +1633,6 @@
       container.appendChild(allBtn);
 
       FAMILY_MEMBERS.forEach(member => {
-        const isOnlyThis = selectedFilters.size === 1 && selectedFilters.has(member.id);
         const isActive = !isAllSelected && selectedFilters.has(member.id);
 
         const btn = document.createElement('button');
@@ -1675,16 +1648,13 @@
         btn.onclick = () => {
           const currentlyAll = selectedFilters.size === FAMILY_MEMBERS.length;
           if (currentlyAll) {
-            // If all are active and user taps one -> show ONLY that person
             selectedFilters = new Set([member.id]);
           } else if (selectedFilters.has(member.id)) {
-            // Remove this person; if none left, revert to all
             selectedFilters.delete(member.id);
             if (selectedFilters.size === 0) {
               selectedFilters = new Set(FAMILY_MEMBERS.map(m => m.id));
             }
           } else {
-            // Add this person to the active selection
             selectedFilters.add(member.id);
           }
           renderFilters();
@@ -1716,7 +1686,6 @@
       document.getElementById('headerRange').textContent =
         `${first.getDate()} ${MONTHS_SHORT[first.getMonth()]} – ${last.getDate()} ${MONTHS_SHORT[last.getMonth()]}`;
 
-      // Mobile segment pills
       document.getElementById('segMonFri').classList.toggle('active', mobileSegment === 0);
       document.getElementById('segSatSun').classList.toggle('active', mobileSegment === 1);
       document.getElementById('mobileSwipeHint').textContent =
@@ -1750,7 +1719,6 @@
       const timeGrid = document.getElementById('timeGrid');
       timeGrid.innerHTML = '';
 
-      // Left time labels column
       const timeCol = document.createElement('div');
       timeCol.className = 'time-labels-col';
       for (let h = 0; h < 24; h++) {
@@ -1761,7 +1729,6 @@
       }
       timeGrid.appendChild(timeCol);
 
-      // Day columns
       visibleDays.forEach(d => {
         const ds = toDateStr(d);
         const dow = d.getDay();
@@ -1871,7 +1838,6 @@
 
     function scrollToAfternoon() {
       const scrollEl = document.getElementById('calendarScroll');
-      // Default view starting at 14:00 (2 PM)
       scrollEl.scrollTop = 14 * HOUR_HEIGHT;
     }
 
@@ -1929,7 +1895,7 @@
     }
 
     // =========================================================================
-    // EVENT MODAL & CRUD (WITH SERIES SUPPORT & REMINDERS)
+    // EVENT MODAL & CRUD
     // =========================================================================
     function renderModalMemberPicker() {
       const picker = document.getElementById('modalMemberPicker');
@@ -2142,15 +2108,14 @@
       const newItems = buildEventsFromForm(null);
       if (existing) {
         events = events.filter(e => e.id !== existing.id);
-        await syncDeleteIds([existing.id]);
       }
       events.push(...newItems);
       persistEventsLocally();
-      await syncUpsertEvents(newItems);
-      scheduleOneSignalReminders(newItems[0]);
-
       document.getElementById('eventModal').classList.remove('open');
       renderEvents();
+
+      await pushEventsToNetlify();
+      scheduleOneSignalReminders(newItems[0]);
     }
 
     async function handleDeleteEvent() {
@@ -2168,9 +2133,10 @@
 
       events = events.filter(e => e.id !== existing.id);
       persistEventsLocally();
-      await syncDeleteIds([existing.id]);
       document.getElementById('eventModal').classList.remove('open');
       renderEvents();
+
+      await pushEventsToNetlify();
     }
 
     async function executeSeriesScope(scope) {
@@ -2180,13 +2146,9 @@
       pendingSeriesAction = null;
 
       if (mode === 'delete') {
-        const toRemove = scope === 'single'
-          ? events.filter(e => e.id === targetEvent.id)
-          : events.filter(e => e.seriesId === targetEvent.seriesId);
-        const ids = toRemove.map(e => e.id);
-        events = events.filter(e => !ids.includes(e.id));
-        persistEventsLocally();
-        await syncDeleteIds(ids);
+        events = scope === 'single'
+          ? events.filter(e => e.id !== targetEvent.id)
+          : events.filter(e => e.seriesId !== targetEvent.seriesId);
       } else if (mode === 'edit') {
         if (scope === 'single') {
           const singleItem = {
@@ -2205,10 +2167,7 @@
             notes: document.getElementById('evNotes').value.trim()
           };
           events = events.map(e => e.id === targetEvent.id ? singleItem : e);
-          persistEventsLocally();
-          await syncUpsertEvents([singleItem]);
         } else {
-          // Update all instances in the series preserving their dates
           const title = document.getElementById('evTitle').value.trim() || targetEvent.title;
           const startTime = document.getElementById('evStart').value;
           const endTime = document.getElementById('evEnd').value;
@@ -2218,22 +2177,19 @@
           const reminders = JSON.parse(JSON.stringify(modalReminders));
           const notes = document.getElementById('evNotes').value.trim();
 
-          const updatedList = [];
           events = events.map(e => {
             if (e.seriesId === targetEvent.seriesId) {
-              const upd = { ...e, title, startTime, endTime, members, dropoff, pickup, reminders, notes };
-              updatedList.push(upd);
-              return upd;
+              return { ...e, title, startTime, endTime, members, dropoff, pickup, reminders, notes };
             }
             return e;
           });
-          persistEventsLocally();
-          await syncUpsertEvents(updatedList);
         }
       }
 
+      persistEventsLocally();
       document.getElementById('eventModal').classList.remove('open');
       renderEvents();
+      await pushEventsToNetlify();
     }
 
     function downloadIcsForCurrentEvent() {
@@ -2365,7 +2321,6 @@
     function parseVoiceCommand(raw) {
       let text = raw.toLowerCase().trim();
 
-      // 1. Detect members (supports multiple names in the same phrase)
       const detectedMembers = new Set();
       if (/\b(todos|toda la familia|familia)\b/.test(text)) {
         FAMILY_MEMBERS.forEach(m => detectedMembers.add(m.id));
@@ -2376,7 +2331,6 @@
         if (/\bnoa(h)?\b/.test(text)) detectedMembers.add('noah');
       }
 
-      // 2. Detect logistics (lleva / recoge)
       let dropoff = '';
       let pickup = '';
       const llevaMatch = text.match(/lleva\s+(alejandro|alba)/);
@@ -2384,7 +2338,6 @@
       const recogeMatch = text.match(/recoge\s+(alejandro|alba)/);
       if (recogeMatch) pickup = recogeMatch[1] === 'alejandro' ? 'Alejandro' : 'Alba';
 
-      // 3. Detect date
       let targetDate = new Date();
       if (/\bpasado\s+mañana\b/.test(text)) {
         targetDate = addDays(targetDate, 2);
@@ -2407,7 +2360,6 @@
         }
       }
 
-      // 4. Detect start & end times
       function parseHourToken(hStr, mStr, period) {
         let h = parseInt(hStr, 10);
         let m = 0;
@@ -2419,7 +2371,6 @@
         if (mStr && mStr.includes('menos')) {
           h = (h - 1 + 24) % 24;
         }
-        // Heuristic: family afternoon hours 1..9 default to PM unless "mañana" specified
         if (period && /mañana/.test(period)) {
           if (h === 12) h = 0;
         } else if (period && /(tarde|noche)/.test(period)) {
@@ -2453,7 +2404,6 @@
         }
       }
 
-      // 5. Detect reminder ("avísame 20 minutos antes")
       const reminders = [];
       const remMatch = text.match(/(?:avísame|avisame|recordatorio)\s+(\d+)\s+(minuto|minutos|hora|horas|día|días|dia|dias)/);
       if (remMatch) {
@@ -2464,13 +2414,11 @@
         else reminders.push({ days: val, hours: 0, minutes: 0 });
       }
 
-      // 6. Extract clean event title
       let title = '';
       const namedMatch = raw.match(/(?:se llama|título|nombre)\s+([^,.;]+?)(?=\s+(?:para|con|el|hoy|mañana|empieza|a las|de \d|lleva|recoge|avísame)|$)/i);
       if (namedMatch) {
         title = namedMatch[1].trim();
       } else {
-        // Strip metadata clauses from raw speech to leave the clean activity name
         title = raw
           .replace(/(?:para|con)\s+(?:alejandro|alba|alicia|noah|noa|todos|toda la familia)(?:\s+y\s+(?:alejandro|alba|alicia|noah|noa))*/gi, '')
           .replace(/(?:empieza|comienza|acaba|termina)\s+(?:a\s+)?(?:las?\s+)?\d{1,2}(?:\s*(?:y|:|menos)\s*(?:\d{1,2}|media|cuarto))?/gi, '')
@@ -2514,29 +2462,24 @@
     }
 
     // =========================================================================
-    // SUPABASE REAL-TIME SYNC & LOCAL PERSISTENCE
+    // NETLIFY BLOBS INTEGRATED SYNC & LOCAL PERSISTENCE
     // =========================================================================
     function loadConfig() {
       try {
-        // Check if shared URL hash #cfg=... was opened (e.g. Alba opening Alejandro's link)
         if (window.location.hash && window.location.hash.startsWith('#cfg=')) {
           const encoded = window.location.hash.slice(5);
           const decoded = JSON.parse(decodeURIComponent(escape(atob(encoded))));
           appConfig = { ...appConfig, ...decoded };
           localStorage.setItem(CFG_KEY, JSON.stringify(appConfig));
           history.replaceState(null, '', window.location.pathname);
-          showToast('✅ Configuración familiar importada y conectada');
+          showToast('✅ Configuración importada');
         } else {
           const saved = localStorage.getItem(CFG_KEY);
           if (saved) appConfig = { ...appConfig, ...JSON.parse(saved) };
         }
-      } catch (e) {
-        console.warn('Error leyendo configuración:', e);
-      }
+      } catch (e) {}
 
-      document.getElementById('sbUrl').value = appConfig.supabaseUrl || '';
-      document.getElementById('sbKey').value = appConfig.supabaseKey || '';
-      document.getElementById('familyRoomId').value = appConfig.familyId || 'familia-alejandro-alba';
+      document.getElementById('familyRoomId').value = appConfig.familyId || DEFAULT_FAMILY_ID;
       document.getElementById('osAppId').value = appConfig.oneSignalAppId || '';
       document.getElementById('osRestKey').value = appConfig.oneSignalRestKey || '';
     }
@@ -2544,9 +2487,7 @@
     function persistEventsLocally() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
-      } catch (e) {
-        console.warn('Error guardando en localStorage:', e);
-      }
+      } catch (e) {}
     }
 
     function loadEventsLocally() {
@@ -2564,126 +2505,95 @@
       persistEventsLocally();
     }
 
-    function mapToSupabaseRow(ev) {
-      return {
-        id: ev.id,
-        family_id: appConfig.familyId || 'familia-alejandro-alba',
-        title: ev.title,
-        date: ev.date,
-        start_time: ev.startTime,
-        end_time: ev.endTime,
-        members: ev.members || [],
-        is_school: Boolean(ev.isSchool),
-        series_id: ev.seriesId || null,
-        recurrence: ev.recurrence || null,
-        dropoff: ev.dropoff || '',
-        pickup: ev.pickup || '',
-        reminders: ev.reminders || [],
-        notes: ev.notes || '',
-        updated_at: new Date().toISOString()
-      };
-    }
-
-    function mapFromSupabaseRow(row) {
-      return {
-        id: row.id,
-        title: row.title,
-        date: row.date,
-        startTime: row.start_time,
-        endTime: row.end_time,
-        members: row.members || [],
-        isSchool: Boolean(row.is_school),
-        seriesId: row.series_id || null,
-        recurrence: row.recurrence || null,
-        dropoff: row.dropoff || '',
-        pickup: row.pickup || '',
-        reminders: row.reminders || [],
-        notes: row.notes || ''
-      };
-    }
-
-    async function initSupabaseSync() {
+    function updateSyncUI(state, detail = '') {
       const dot = document.getElementById('syncDot');
       const label = document.getElementById('syncLabel');
-      const statusBox = document.getElementById('syncStatusBox');
+      const box = document.getElementById('syncStatusBox');
 
-      if (!appConfig.supabaseUrl || !appConfig.supabaseKey || !window.supabase) {
-        dot.classList.remove('online');
-        label.textContent = 'Sync';
-        return;
-      }
-
-      try {
-        supabaseClient = window.supabase.createClient(appConfig.supabaseUrl, appConfig.supabaseKey);
-        const famId = appConfig.familyId || 'familia-alejandro-alba';
-
-        const { data, error } = await supabaseClient
-          .from('family_events')
-          .select('*')
-          .eq('family_id', famId);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          events = data.map(mapFromSupabaseRow);
-          persistEventsLocally();
-          renderEvents();
-        } else if (events.length > 0) {
-          // Seed initial academic year events into Supabase in chunks
-          await syncUpsertEvents(events);
-        }
-
-        if (supabaseChannel) {
-          supabaseClient.removeChannel(supabaseChannel);
-        }
-
-        supabaseChannel = supabaseClient
-          .channel(`family-sync-${famId}`)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'family_events', filter: `family_id=eq.${famId}` },
-            (payload) => {
-              if (payload.eventType === 'DELETE') {
-                events = events.filter(e => e.id !== payload.old.id);
-              } else if (payload.new) {
-                const incoming = mapFromSupabaseRow(payload.new);
-                const idx = events.findIndex(e => e.id === incoming.id);
-                if (idx >= 0) events[idx] = incoming;
-                else events.push(incoming);
-              }
-              persistEventsLocally();
-              renderEvents();
-            }
-          )
-          .subscribe();
-
+      if (state === 'online') {
         dot.classList.add('online');
         label.textContent = 'En vivo';
-        statusBox.innerHTML = `Estado actual: <strong style="color:#059669;">Conectado en tiempo real</strong> al grupo <code>${escapeHtml(famId)}</code>.`;
-      } catch (err) {
-        console.error('Supabase error:', err);
+        box.innerHTML = `Estado actual: <strong style="color:#059669;">Sincronizado automáticamente en Netlify</strong> (espacio <code>${escapeHtml(appConfig.familyId)}</code>). Todos los cambios se comparten entre Alejandro y Alba sin configurar nada.`;
+      } else if (state === 'syncing') {
+        label.textContent = 'Guardando...';
+      } else {
         dot.classList.remove('online');
-        label.textContent = 'Error Sync';
-        statusBox.innerHTML = `⚠️ Error conectando con Supabase: <strong>${escapeHtml(err.message || 'Revisa URL y Key')}</strong>`;
+        label.textContent = 'Local';
+        box.innerHTML = `Estado actual: <strong>Modo local</strong> (${escapeHtml(detail || 'se activará la nube automáticamente al publicar en Netlify')}).`;
       }
     }
 
-    async function syncUpsertEvents(items) {
-      if (!supabaseClient || !items || items.length === 0) return;
-      const rows = items.map(mapToSupabaseRow);
-      const chunkSize = 200;
-      for (let i = 0; i < rows.length; i += chunkSize) {
-        const chunk = rows.slice(i, i + chunkSize);
-        await supabaseClient.from('family_events').upsert(chunk, { onConflict: 'id' });
+    async function initNetlifySync() {
+      const famId = encodeURIComponent(appConfig.familyId || DEFAULT_FAMILY_ID);
+      try {
+        const res = await fetch(`${NETLIFY_API_ENDPOINT}?familyId=${famId}`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || 'Error API');
+
+        netlifyCloudAvailable = true;
+
+        if (Array.isArray(data.events) && data.events.length > 0) {
+          events = data.events;
+          lastCloudUpdatedAt = data.updatedAt || Date.now();
+          persistEventsLocally();
+          renderEvents();
+        } else {
+          // First time deploying: upload initial 2026-2027 academic year to Netlify Blobs
+          await pushEventsToNetlify();
+        }
+
+        updateSyncUI('online');
+      } catch (err) {
+        netlifyCloudAvailable = false;
+        updateSyncUI('local', 'disponible al desplegar en Netlify');
       }
     }
 
-    async function syncDeleteIds(ids) {
-      if (!supabaseClient || !ids || ids.length === 0) return;
-      const chunkSize = 200;
-      for (let i = 0; i < ids.length; i += chunkSize) {
-        const chunk = ids.slice(i, i + chunkSize);
-        await supabaseClient.from('family_events').delete().in('id', chunk);
+    async function pollNetlifySync() {
+      if (!netlifyCloudAvailable || isSyncingCloud || document.hidden) return;
+      const famId = encodeURIComponent(appConfig.familyId || DEFAULT_FAMILY_ID);
+      try {
+        const res = await fetch(`${NETLIFY_API_ENDPOINT}?familyId=${famId}`, {
+          method: 'GET',
+          cache: 'no-store'
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.ok && Array.isArray(data.events) && data.updatedAt > lastCloudUpdatedAt) {
+          lastCloudUpdatedAt = data.updatedAt;
+          events = data.events;
+          persistEventsLocally();
+          renderEvents();
+        }
+      } catch (e) {}
+    }
+
+    async function pushEventsToNetlify() {
+      const famId = encodeURIComponent(appConfig.familyId || DEFAULT_FAMILY_ID);
+      isSyncingCloud = true;
+      if (netlifyCloudAvailable) updateSyncUI('syncing');
+
+      try {
+        const res = await fetch(`${NETLIFY_API_ENDPOINT}?familyId=${famId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ events })
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.ok) {
+          netlifyCloudAvailable = true;
+          lastCloudUpdatedAt = data.updatedAt || Date.now();
+          updateSyncUI('online');
+        }
+      } catch (err) {
+        if (netlifyCloudAvailable) updateSyncUI('local', 'sin conexión temporalmente');
+      } finally {
+        isSyncingCloud = false;
       }
     }
 
@@ -2729,9 +2639,7 @@
               send_after: sendAt.toUTCString()
             })
           });
-        } catch (e) {
-          console.warn('No se pudo programar push en OneSignal:', e);
-        }
+        } catch (e) {}
       }
     }
 
@@ -2741,8 +2649,8 @@
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.14); // A5
+        osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+        osc.frequency.setValueAtTime(880, ctx.currentTime + 0.14);
         gain.gain.setValueAtTime(0.12, ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
         osc.connect(gain);
@@ -2800,7 +2708,6 @@
         if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
 
         if (dx < 0) {
-          // Swipe Left -> move forward
           if (mobileSegment === 0) {
             mobileSegment = 1;
           } else {
@@ -2808,7 +2715,6 @@
             currentWeekStart = addDays(currentWeekStart, 7);
           }
         } else {
-          // Swipe Right -> move backward
           if (mobileSegment === 1) {
             mobileSegment = 0;
           } else {
@@ -2824,7 +2730,6 @@
     // INITIALIZATION & EVENT LISTENERS
     // =========================================================================
     function bindUIEvents() {
-      // Navigation
       document.getElementById('prevWeekBtn').onclick = () => {
         currentWeekStart = addDays(currentWeekStart, -7);
         renderCalendarStructure();
@@ -2842,7 +2747,6 @@
         scrollToAfternoon();
       };
 
-      // Mobile segment pills
       document.getElementById('segMonFri').onclick = () => {
         mobileSegment = 0;
         renderCalendarStructure();
@@ -2852,7 +2756,6 @@
         renderCalendarStructure();
       };
 
-      // Mini monthly calendar popover
       document.getElementById('monthTrigger').onclick = (e) => {
         e.stopPropagation();
         const pop = document.getElementById('miniCalPopover');
@@ -2877,14 +2780,12 @@
         }
       });
 
-      // School toggle
       document.getElementById('schoolToggleBtn').onclick = () => {
         showSchool = !showSchool;
         renderFilters();
         renderEvents();
       };
 
-      // Header create buttons
       document.getElementById('newEventBtn').onclick = () => {
         openEventModal({ date: toDateStr(new Date()), members: ['alejandro'] });
       };
@@ -2897,7 +2798,6 @@
       document.getElementById('voiceBtn').onclick = () => startVoiceCapture(false);
       document.getElementById('modalVoiceBtn').onclick = () => startVoiceCapture(true);
 
-      // Modal controls
       document.getElementById('closeEventModal').onclick = () => document.getElementById('eventModal').classList.remove('open');
       document.getElementById('cancelEventBtn').onclick = () => document.getElementById('eventModal').classList.remove('open');
       document.getElementById('selectAllMembersBtn').onclick = () => {
@@ -2938,7 +2838,6 @@
       };
       document.getElementById('exportIcsBtn').onclick = downloadIcsForCurrentEvent;
 
-      // Series scope modal
       document.getElementById('closeSeriesScope').onclick = () => document.getElementById('seriesScopeModal').classList.remove('open');
       document.getElementById('scopeSingleBtn').onclick = () => executeSeriesScope('single');
       document.getElementById('scopeAllBtn').onclick = () => executeSeriesScope('all');
@@ -2947,24 +2846,27 @@
       document.getElementById('syncModalBtn').onclick = () => document.getElementById('syncModal').classList.add('open');
       document.getElementById('closeSyncModal').onclick = () => document.getElementById('syncModal').classList.remove('open');
 
-      document.getElementById('connectSupabaseBtn').onclick = async () => {
-        appConfig.supabaseUrl = document.getElementById('sbUrl').value.trim();
-        appConfig.supabaseKey = document.getElementById('sbKey').value.trim();
-        appConfig.familyId = document.getElementById('familyRoomId').value.trim() || 'familia-alejandro-alba';
+      document.getElementById('forceSyncBtn').onclick = async () => {
+        appConfig.familyId = document.getElementById('familyRoomId').value.trim() || DEFAULT_FAMILY_ID;
+        localStorage.setItem(CFG_KEY, JSON.stringify(appConfig));
+        await initNetlifySync();
+        showToast('🔄 Sincronización comprobada');
+      };
+
+      document.getElementById('savePushCfgBtn').onclick = () => {
+        appConfig.familyId = document.getElementById('familyRoomId').value.trim() || DEFAULT_FAMILY_ID;
         appConfig.oneSignalAppId = document.getElementById('osAppId').value.trim();
         appConfig.oneSignalRestKey = document.getElementById('osRestKey').value.trim();
         localStorage.setItem(CFG_KEY, JSON.stringify(appConfig));
-        await initSupabaseSync();
         initOneSignal();
         showToast('✅ Configuración guardada');
       };
 
       document.getElementById('shareLinkBtn').onclick = async () => {
-        const payload = btoa(unescape(encodeURIComponent(JSON.stringify(appConfig))));
-        const shareUrl = `${window.location.origin}${window.location.pathname}#cfg=${payload}`;
+        const shareUrl = `${window.location.origin}${window.location.pathname}`;
         try {
           await navigator.clipboard.writeText(shareUrl);
-          showToast('🔗 Enlace copiado. Pégalo en WhatsApp para Alba');
+          showToast('🔗 Enlace copiado para Alba');
         } catch (e) {
           prompt('Copia este enlace y mándaselo a Alba:', shareUrl);
         }
@@ -3013,8 +2915,8 @@
             if (Array.isArray(imported)) {
               events = imported;
               persistEventsLocally();
-              await syncUpsertEvents(events);
               renderEvents();
+              await pushEventsToNetlify();
               showToast('✅ Copia restaurada correctamente');
             }
           } catch (err) {
@@ -3028,10 +2930,14 @@
         if (!confirm('¿Restaurar los horarios escolares y extraescolares del curso 2026–2027?')) return;
         events = generateDefaultAcademicYearEvents();
         persistEventsLocally();
-        await syncUpsertEvents(events);
         renderEvents();
+        await pushEventsToNetlify();
         showToast('🎓 Curso 2026–2027 restaurado');
       };
+
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) pollNetlifySync();
+      });
 
       window.addEventListener('resize', () => {
         renderCalendarStructure();
@@ -3051,7 +2957,7 @@
       initTouchGestures();
       scrollToAfternoon();
 
-      initSupabaseSync();
+      initNetlifySync();
       initOneSignal();
 
       if ('serviceWorker' in navigator) {
@@ -3062,6 +2968,10 @@
         updateNowIndicator();
         checkDueReminders();
       }, 20000);
+
+      setInterval(() => {
+        pollNetlifySync();
+      }, 6000);
     }
 
     document.addEventListener('DOMContentLoaded', init);

@@ -1,7 +1,7 @@
 {
   "name": "Calendario Familiar — Alejandro, Alba, Alicia y Noah",
   "short_name": "Calendario Fam.",
-  "description": "Organizador semanal familiar sincronizado en tiempo real con horarios escolares, extraescolares y recordatorios.",
+  "description": "Organizador semanal familiar sincronizado en Netlify con horarios escolares, extraescolares y recordatorios.",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#F8FAFC",
