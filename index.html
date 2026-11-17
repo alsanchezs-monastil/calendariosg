@@ -31,6 +31,8 @@
       --primary-soft: #EFF6FF;
       --hour-height: 60px;
       --time-col-width: 52px;
+      --total-days: 7;
+      --day-col-width: 1fr;
       --radius-sm: 8px;
       --radius-md: 12px;
       --radius-lg: 16px;
@@ -69,8 +71,8 @@
     .app-header {
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border-light);
-      padding: 10px 14px 8px;
-      z-index: 30;
+      padding: 10px 16px 9px;
+      z-index: 40;
       flex-shrink: 0;
     }
 
@@ -78,14 +80,14 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 10px;
+      margin-bottom: 9px;
     }
 
     .date-nav-group {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 10px;
       min-width: 0;
     }
 
@@ -107,17 +109,19 @@
     }
 
     .header-month {
-      font-size: 1.05rem;
+      font-size: 1.32rem;
       font-weight: 700;
       color: var(--text-main);
-      letter-spacing: -0.02em;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
       white-space: nowrap;
     }
 
     .header-range {
-      font-size: 0.74rem;
+      font-size: 0.88rem;
       color: var(--text-secondary);
-      font-weight: 500;
+      font-weight: 600;
+      margin-top: 1px;
       white-space: nowrap;
     }
 
@@ -312,42 +316,6 @@
       color: #166534;
     }
 
-    /* MOBILE PAGER INDICATOR */
-    .mobile-segment-bar {
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      padding: 5px 14px;
-      background: var(--bg-subtle);
-      border-bottom: 1px solid var(--border-light);
-      font-size: 0.72rem;
-      color: var(--text-secondary);
-      font-weight: 500;
-    }
-
-    .segment-pills {
-      display: flex;
-      gap: 6px;
-    }
-
-    .seg-pill {
-      padding: 2px 9px;
-      border-radius: 999px;
-      border: 1px solid transparent;
-      background: transparent;
-      font-size: 0.71rem;
-      font-weight: 600;
-      color: var(--text-secondary);
-      cursor: pointer;
-    }
-
-    .seg-pill.active {
-      background: var(--bg-surface);
-      color: var(--primary);
-      border-color: var(--border-light);
-      box-shadow: var(--shadow-sm);
-    }
-
     /* MINI CALENDAR POPOVER */
     .mini-cal-popover {
       position: absolute;
@@ -420,7 +388,7 @@
       font-weight: 600;
     }
 
-    /* CALENDAR GRID */
+    /* CALENDAR FLUID SCROLL CONTAINER */
     .calendar-wrapper {
       flex: 1;
       display: flex;
@@ -429,23 +397,43 @@
       position: relative;
     }
 
+    .scroll-area {
+      flex: 1;
+      overflow: auto;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+      overscroll-behavior-x: contain;
+    }
+
+    .calendar-canvas {
+      width: 100%;
+      min-width: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
     .days-header {
       display: grid;
-      grid-template-columns: var(--time-col-width) repeat(var(--visible-days, 7), 1fr);
+      grid-template-columns: var(--time-col-width) repeat(var(--total-days, 7), var(--day-col-width, 1fr));
       border-bottom: 1px solid var(--border-light);
       background: var(--bg-surface);
-      flex-shrink: 0;
-      padding-right: 6px;
+      position: sticky;
+      top: 0;
+      z-index: 30;
     }
 
     .time-gutter-header {
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.66rem;
+      font-size: 0.64rem;
       font-weight: 600;
       color: var(--text-muted);
       border-right: 1px solid var(--border-light);
+      background: var(--bg-surface);
+      position: sticky;
+      left: 0;
+      z-index: 35;
     }
 
     .day-col-header {
@@ -456,6 +444,7 @@
       flex-direction: column;
       align-items: center;
       gap: 2px;
+      background: var(--bg-surface);
     }
 
     .day-col-header:last-child {
@@ -495,17 +484,9 @@
       background: #FAFBFC;
     }
 
-    .scroll-area {
-      flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
-      position: relative;
-      scroll-behavior: smooth;
-    }
-
     .time-grid {
       display: grid;
-      grid-template-columns: var(--time-col-width) repeat(var(--visible-days, 7), 1fr);
+      grid-template-columns: var(--time-col-width) repeat(var(--total-days, 7), var(--day-col-width, 1fr));
       height: calc(24 * var(--hour-height));
       position: relative;
     }
@@ -513,7 +494,9 @@
     .time-labels-col {
       border-right: 1px solid var(--border-light);
       background: #FCFDFE;
-      position: relative;
+      position: sticky;
+      left: 0;
+      z-index: 20;
     }
 
     .time-label {
@@ -559,6 +542,10 @@
       background-color: #FAFBFC;
     }
 
+    .day-column.is-monday {
+      border-left: 1.5px solid #CBD5E1;
+    }
+
     /* CURRENT TIME LINE (ONLY ON TODAY'S COLUMN) */
     .now-line {
       position: absolute;
@@ -566,7 +553,7 @@
       right: 0;
       height: 2px;
       background: #EF4444;
-      z-index: 22;
+      z-index: 18;
       pointer-events: none;
     }
 
@@ -603,7 +590,7 @@
 
     .event-card:hover,
     .event-card:active {
-      z-index: 25 !important;
+      z-index: 19 !important;
       box-shadow: 0 6px 16px rgba(15, 23, 42, 0.16);
       transform: translateY(-1px);
     }
@@ -954,25 +941,58 @@
 
     @media (max-width: 767px) {
       :root {
-        --time-col-width: 42px;
+        --time-col-width: 44px;
+        --day-col-width: calc((100vw - 44px) / 5);
+      }
+      .calendar-canvas {
+        width: max-content;
       }
       .app-header {
-        padding: 8px 10px 6px;
+        padding: 8px 10px 7px;
+      }
+      .header-top {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 7px;
+        margin-bottom: 7px;
+      }
+      .date-nav-group {
+        width: 100%;
+        justify-content: space-between;
+        gap: 6px;
+      }
+      .month-trigger {
+        padding: 2px 4px;
       }
       .header-month {
-        font-size: 0.94rem;
+        font-size: 1.18rem;
       }
       .header-range {
-        display: none;
+        display: block;
+        font-size: 0.84rem;
       }
-      .action-pill span.hide-xs {
-        display: none;
-      }
-      .mobile-segment-bar {
+      .header-actions {
+        width: 100%;
         display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        overflow-x: auto;
+        scrollbar-width: none;
       }
-      .days-header {
-        padding-right: 0;
+      .header-actions::-webkit-scrollbar {
+        display: none;
+      }
+      .header-actions .action-pill {
+        flex: 1 1 auto;
+        justify-content: center;
+        height: 32px;
+        padding: 0 9px;
+        font-size: 0.76rem;
+      }
+      .mini-cal-popover {
+        top: 58px;
+        left: 10px;
       }
     }
   </style>
@@ -1032,20 +1052,13 @@
       <div class="mini-cal-grid" id="miniCalGrid"></div>
     </div>
 
-    <!-- MOBILE 5-DAY / WEEKEND BAR -->
-    <div class="mobile-segment-bar" id="mobileSegmentBar">
-      <span id="mobileSwipeHint">Desliza para ver fin de semana →</span>
-      <div class="segment-pills">
-        <button type="button" class="seg-pill active" id="segMonFri">Lun – Vie</button>
-        <button type="button" class="seg-pill" id="segSatSun">Sáb – Dom</button>
-      </div>
-    </div>
-
-    <!-- MAIN CALENDAR GRID -->
+    <!-- MAIN FLUID CALENDAR GRID -->
     <div class="calendar-wrapper" id="calendarTouchArea">
-      <div class="days-header" id="daysHeader"></div>
       <div class="scroll-area" id="calendarScroll">
-        <div class="time-grid" id="timeGrid"></div>
+        <div class="calendar-canvas" id="calendarCanvas">
+          <div class="days-header" id="daysHeader"></div>
+          <div class="time-grid" id="timeGrid"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1265,11 +1278,11 @@
     ];
 
     const COMBO_STYLES = {
-      kids:       { color: '#0D9488', bg: 'rgba(230, 247, 247, 0.92)', text: '#115E59' }, // Alicia + Noah
-      adults:     { color: '#6B46C1', bg: 'rgba(241, 238, 252, 0.92)', text: '#44337A' }, // Alejandro + Alba
-      adultChild: { color: '#DD6B20', bg: 'rgba(253, 240, 230, 0.92)', text: '#7B341E' }, // 1 Adulto + 1 Niño
-      three:      { color: '#475569', bg: 'rgba(237, 242, 247, 0.92)', text: '#1E293B' }, // 3 miembros
-      all:        { color: '#B7791F', bg: 'rgba(251, 246, 227, 0.94)', text: '#744210' }  // Todos (4)
+      kids:       { color: '#0D9488', bg: 'rgba(230, 247, 247, 0.92)', text: '#115E59' },
+      adults:     { color: '#6B46C1', bg: 'rgba(241, 238, 252, 0.92)', text: '#44337A' },
+      adultChild: { color: '#DD6B20', bg: 'rgba(253, 240, 230, 0.92)', text: '#7B341E' },
+      three:      { color: '#475569', bg: 'rgba(237, 242, 247, 0.92)', text: '#1E293B' },
+      all:        { color: '#B7791F', bg: 'rgba(251, 246, 227, 0.94)', text: '#744210' }
     };
 
     const SCHOOL_STYLES = {
@@ -1284,7 +1297,6 @@
     const STORAGE_KEY = 'cal_familiar_events_v7';
     const CFG_KEY = 'cal_familiar_cfg_v2';
 
-    // Non-school dates from DOGV 2026-2027 image
     const NON_SCHOOL_DATES = new Set([
       '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-12',
       '2026-12-08',
@@ -1302,8 +1314,9 @@
     let selectedFilters = new Set(['alejandro', 'alba', 'alicia', 'noah']);
     let showSchool = true;
     let currentWeekStart = getMonday(new Date());
-    let mobileSegment = 0; // 0 = Mon-Fri, 1 = Sat-Sun
+    let renderedDays = [];
     let miniCalMonth = new Date(currentWeekStart);
+    let lastWasMobile = window.innerWidth < 768;
 
     // Editing State
     let editingEventId = null;
@@ -1369,6 +1382,11 @@
       return window.innerWidth < 768;
     }
 
+    function getMobileDayWidth() {
+      const timeColW = 44;
+      return (window.innerWidth - timeColW) / 5;
+    }
+
     function uid(prefix = 'ev') {
       return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
     }
@@ -1386,15 +1404,14 @@
 
     function generateDefaultAcademicYearEvents() {
       const list = [];
-      const start = new Date(2026, 8, 9);  // 9 Sept 2026
-      const end = new Date(2027, 5, 18);   // 18 June 2027
+      const start = new Date(2026, 8, 9);
+      const end = new Date(2027, 5, 18);
 
       for (let d = new Date(start); d <= end; d = addDays(d, 1)) {
         if (!isSchoolDay(d)) continue;
         const ds = toDateStr(d);
         const dow = d.getDay();
 
-        // Colegio Noah: L-V 09:00 - 16:50
         list.push({
           id: `sch_noah_${ds}`,
           title: 'Colegio Noah',
@@ -1410,7 +1427,6 @@
           notes: ''
         });
 
-        // Colegio Alicia: L, X 09:00 - 17:00 | M, J, V 09:00 - 15:30
         const aliciaEnd = (dow === 1 || dow === 3) ? '17:00' : '15:30';
         list.push({
           id: `sch_alicia_${ds}`,
@@ -1613,7 +1629,7 @@
     }
 
     // =========================================================================
-    // RENDERING: FILTERS, HEADER & CALENDAR GRID
+    // RENDERING: FILTERS, HEADER & FLUID CALENDAR GRID
     // =========================================================================
     function renderFilters() {
       const container = document.getElementById('memberFilters');
@@ -1667,16 +1683,28 @@
       schoolBtn.classList.toggle('active', showSchool);
     }
 
-    function getVisibleDays() {
-      const allDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
-      if (!isMobileView()) return allDays;
-      return mobileSegment === 0 ? allDays.slice(0, 5) : allDays.slice(5, 7);
+    function getDaysToRender() {
+      if (!isMobileView()) {
+        // Desktop: 7 days (Mon - Sun)
+        return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
+      }
+      // Mobile: 35 continuous days (1 past week + current week + 3 upcoming weeks) for silky-smooth horizontal scrolling
+      const start = addDays(currentWeekStart, -7);
+      return Array.from({ length: 35 }, (_, i) => addDays(start, i));
     }
 
-    function renderHeaderDates() {
-      const visibleDays = getVisibleDays();
-      const first = visibleDays[0];
-      const last = visibleDays[visibleDays.length - 1];
+    function updateHeaderFromVisibleWindow() {
+      if (!renderedDays.length) return;
+      let first = renderedDays[0];
+      let last = renderedDays[renderedDays.length - 1];
+
+      if (isMobileView()) {
+        const scrollEl = document.getElementById('calendarScroll');
+        const dayW = getMobileDayWidth();
+        const startIdx = Math.max(0, Math.min(renderedDays.length - 5, Math.round(scrollEl.scrollLeft / dayW)));
+        first = renderedDays[startIdx];
+        last = renderedDays[Math.min(renderedDays.length - 1, startIdx + 4)];
+      }
 
       const monthText = first.getMonth() === last.getMonth()
         ? `${MONTHS_LONG[first.getMonth()]} ${first.getFullYear()}`
@@ -1685,24 +1713,18 @@
       document.getElementById('headerMonth').textContent = `${monthText} ▾`;
       document.getElementById('headerRange').textContent =
         `${first.getDate()} ${MONTHS_SHORT[first.getMonth()]} – ${last.getDate()} ${MONTHS_SHORT[last.getMonth()]}`;
-
-      document.getElementById('segMonFri').classList.toggle('active', mobileSegment === 0);
-      document.getElementById('segSatSun').classList.toggle('active', mobileSegment === 1);
-      document.getElementById('mobileSwipeHint').textContent =
-        mobileSegment === 0 ? 'Desliza ← para Sáb–Dom' : 'Desliza → para Lun–Vie';
     }
 
-    function renderCalendarStructure() {
-      renderHeaderDates();
-      const visibleDays = getVisibleDays();
-      const numDays = visibleDays.length;
-      document.documentElement.style.setProperty('--visible-days', numDays);
+    function renderCalendarStructure(targetFocusDate = null) {
+      renderedDays = getDaysToRender();
+      const numDays = renderedDays.length;
+      document.documentElement.style.setProperty('--total-days', numDays);
 
       const todayStr = toDateStr(new Date());
       const daysHeader = document.getElementById('daysHeader');
       daysHeader.innerHTML = `<div class="time-gutter-header">GMT+1</div>`;
 
-      visibleDays.forEach(d => {
+      renderedDays.forEach(d => {
         const ds = toDateStr(d);
         const dow = d.getDay();
         const isToday = ds === todayStr;
@@ -1729,12 +1751,13 @@
       }
       timeGrid.appendChild(timeCol);
 
-      visibleDays.forEach(d => {
+      renderedDays.forEach(d => {
         const ds = toDateStr(d);
         const dow = d.getDay();
         const isWeekend = dow === 0 || dow === 6;
+        const isMonday = dow === 1;
         const dayCol = document.createElement('div');
-        dayCol.className = `day-column ${isWeekend ? 'is-weekend' : ''}`;
+        dayCol.className = `day-column ${isWeekend ? 'is-weekend' : ''} ${isMonday ? 'is-monday' : ''}`;
         dayCol.dataset.date = ds;
 
         dayCol.addEventListener('click', (e) => {
@@ -1753,6 +1776,24 @@
 
       renderEvents();
       updateNowIndicator();
+
+      if (isMobileView()) {
+        const scrollEl = document.getElementById('calendarScroll');
+        const dayW = getMobileDayWidth();
+        let targetIdx = 7; // Monday of currentWeekStart
+        if (targetFocusDate) {
+          const targetStr = toDateStr(targetFocusDate);
+          const foundIdx = renderedDays.findIndex(d => toDateStr(d) === targetStr);
+          if (foundIdx >= 0) {
+            // If Saturday or Sunday, shift slightly left so it's comfortably visible in the 5-day viewport
+            const dow = targetFocusDate.getDay();
+            targetIdx = (dow === 0 || dow === 6) ? Math.max(0, foundIdx - 3) : foundIdx;
+          }
+        }
+        scrollEl.scrollLeft = targetIdx * dayW;
+      }
+
+      updateHeaderFromVisibleWindow();
     }
 
     function renderEvents() {
@@ -1850,6 +1891,50 @@
     }
 
     // =========================================================================
+    // SEAMLESS INFINITE HORIZONTAL SCROLL HANDLER (MOBILE)
+    // =========================================================================
+    function initFluidScrollListener() {
+      const scrollEl = document.getElementById('calendarScroll');
+      let scrollStopTimer = null;
+      let rafPending = false;
+
+      scrollEl.addEventListener('scroll', () => {
+        if (!isMobileView()) return;
+
+        if (!rafPending) {
+          rafPending = true;
+          requestAnimationFrame(() => {
+            updateHeaderFromVisibleWindow();
+            rafPending = false;
+          });
+        }
+
+        clearTimeout(scrollStopTimer);
+        scrollStopTimer = setTimeout(() => {
+          const dayW = getMobileDayWidth();
+          if (dayW <= 0) return;
+          const visibleStartIdx = Math.round(scrollEl.scrollLeft / dayW);
+
+          // Keep currentWeekStart synced with what the user is viewing
+          if (renderedDays[visibleStartIdx]) {
+            currentWeekStart = getMonday(renderedDays[visibleStartIdx]);
+          }
+
+          // If user scrolled close to either edge of the 35-day buffer, seamlessly re-center without visual jump
+          if (visibleStartIdx <= 3 || visibleStartIdx >= 26) {
+            const currentLeftPx = scrollEl.scrollLeft;
+            const oldFirstDay = renderedDays[0];
+            renderCalendarStructure();
+            const newFirstDay = renderedDays[0];
+            const diffDays = Math.round((newFirstDay - oldFirstDay) / 86400000);
+            scrollEl.scrollLeft = currentLeftPx - (diffDays * dayW);
+            updateHeaderFromVisibleWindow();
+          }
+        }, 180);
+      }, { passive: true });
+    }
+
+    // =========================================================================
     // MINI MONTHLY CALENDAR
     // =========================================================================
     function renderMiniCalendar() {
@@ -1885,10 +1970,8 @@
 
         btn.onclick = () => {
           currentWeekStart = getMonday(d);
-          const dow = d.getDay();
-          mobileSegment = (dow === 0 || dow === 6) ? 1 : 0;
           document.getElementById('miniCalPopover').classList.remove('open');
-          renderCalendarStructure();
+          renderCalendarStructure(d);
         };
         grid.appendChild(btn);
       }
@@ -2542,7 +2625,6 @@
           persistEventsLocally();
           renderEvents();
         } else {
-          // First time deploying: upload initial 2026-2027 academic year to Netlify Blobs
           await pushEventsToNetlify();
         }
 
@@ -2687,73 +2769,34 @@
     }
 
     // =========================================================================
-    // TOUCH SWIPE NAVIGATION (MOBILE 5-DAY <-> WEEKEND <-> NEXT/PREV WEEK)
-    // =========================================================================
-    function initTouchGestures() {
-      const area = document.getElementById('calendarTouchArea');
-      let touchStartX = 0;
-      let touchStartY = 0;
-
-      area.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return;
-        touchStartX = e.touches[0].clientX;
-        touchStartY = e.touches[0].clientY;
-      }, { passive: true });
-
-      area.addEventListener('touchend', (e) => {
-        if (!isMobileView() || e.changedTouches.length !== 1) return;
-        const dx = e.changedTouches[0].clientX - touchStartX;
-        const dy = e.changedTouches[0].clientY - touchStartY;
-
-        if (Math.abs(dx) < 55 || Math.abs(dx) < Math.abs(dy) * 1.3) return;
-
-        if (dx < 0) {
-          if (mobileSegment === 0) {
-            mobileSegment = 1;
-          } else {
-            mobileSegment = 0;
-            currentWeekStart = addDays(currentWeekStart, 7);
-          }
-        } else {
-          if (mobileSegment === 1) {
-            mobileSegment = 0;
-          } else {
-            mobileSegment = 1;
-            currentWeekStart = addDays(currentWeekStart, -7);
-          }
-        }
-        renderCalendarStructure();
-      }, { passive: true });
-    }
-
-    // =========================================================================
     // INITIALIZATION & EVENT LISTENERS
     // =========================================================================
     function bindUIEvents() {
       document.getElementById('prevWeekBtn').onclick = () => {
-        currentWeekStart = addDays(currentWeekStart, -7);
-        renderCalendarStructure();
+        if (isMobileView()) {
+          const scrollEl = document.getElementById('calendarScroll');
+          scrollEl.scrollBy({ left: -getMobileDayWidth() * 5, behavior: 'smooth' });
+        } else {
+          currentWeekStart = addDays(currentWeekStart, -7);
+          renderCalendarStructure();
+        }
       };
+
       document.getElementById('nextWeekBtn').onclick = () => {
-        currentWeekStart = addDays(currentWeekStart, 7);
-        renderCalendarStructure();
+        if (isMobileView()) {
+          const scrollEl = document.getElementById('calendarScroll');
+          scrollEl.scrollBy({ left: getMobileDayWidth() * 5, behavior: 'smooth' });
+        } else {
+          currentWeekStart = addDays(currentWeekStart, 7);
+          renderCalendarStructure();
+        }
       };
+
       document.getElementById('todayBtn').onclick = () => {
         const now = new Date();
         currentWeekStart = getMonday(now);
-        const dow = now.getDay();
-        mobileSegment = (dow === 0 || dow === 6) ? 1 : 0;
-        renderCalendarStructure();
+        renderCalendarStructure(now);
         scrollToAfternoon();
-      };
-
-      document.getElementById('segMonFri').onclick = () => {
-        mobileSegment = 0;
-        renderCalendarStructure();
-      };
-      document.getElementById('segSatSun').onclick = () => {
-        mobileSegment = 1;
-        renderCalendarStructure();
       };
 
       document.getElementById('monthTrigger').onclick = (e) => {
@@ -2940,21 +2983,24 @@
       });
 
       window.addEventListener('resize', () => {
-        renderCalendarStructure();
+        const nowMobile = isMobileView();
+        if (nowMobile !== lastWasMobile) {
+          lastWasMobile = nowMobile;
+          renderCalendarStructure(new Date());
+        }
       });
     }
 
     function init() {
       const now = new Date();
-      const dow = now.getDay();
-      mobileSegment = (dow === 0 || dow === 6) ? 1 : 0;
+      currentWeekStart = getMonday(now);
 
       loadConfig();
       loadEventsLocally();
       renderFilters();
-      renderCalendarStructure();
+      renderCalendarStructure(now);
       bindUIEvents();
-      initTouchGestures();
+      initFluidScrollListener();
       scrollToAfternoon();
 
       initNetlifySync();

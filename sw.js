@@ -1,4 +1,4 @@
-const CACHE_NAME = 'calendario-familiar-v2';
+const CACHE_NAME = 'calendario-familiar-v4';
 const ASSETS = [
   '/',
   '/index.html',
